@@ -97,19 +97,19 @@
             msg:
               - "{{ prowler_result }}"
 
-        # - name: Send to splunk from localhost
-        #   delegate_to: localhost
-        #   uri:
-        #     url: "{{ splunk_hec_server }}"
-        #     method: 'POST'
-        #     body_format: json
-        #     status_code: [200, 202]
-        #     return_content: true
-        #     headers:
-        #       Content-Type: application/json
-        #       Authorization: "Splunk {{ splunk_hec_token }}"
-        #     body: "{{ { 'sourcetype': '_json', 'event': splunk_event.event + [ prowler_result ] } }}"
-        #     validate_certs: no
+        - name: Send to splunk from localhost
+          delegate_to: localhost
+          uri:
+            url: "{{ splunk_hec_server }}"
+            method: 'POST'
+            body_format: json
+            status_code: [200, 202]
+            return_content: true
+            headers:
+              Content-Type: application/json
+              Authorization: "Splunk {{ splunk_hec_token }}"
+            body: "{{ { 'sourcetype': '_json', 'event': splunk_event.event + [ prowler_result ] } }}"
+            validate_certs: no
 
 
 
