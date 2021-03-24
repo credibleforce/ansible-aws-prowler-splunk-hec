@@ -3,15 +3,19 @@
     gather_facts: True
     pre_tasks:
     tasks:
-        - name: Set facts
+        - name: Create Scan ID
           set_fact:
-            splunk_event: "{{ { 'sourcetype': '_json', 'event':[] } }}"
+            scan_id: "{{ ansible_date_time.iso8601 }}"
+
+        - name: Set Execution Facts
+          set_fact:
+            splunk_event: "{{ { 'sourcetype': '_json', 'event': { 'scan_id': scan_id, 'data': [] } } }}"
             # example: https://splunk:8088/services/collector/event
             splunk_hec_server: "{{ SPLUNK_HEC_SERVER }}" 
             splunk_hec_token: "{{ SPLUNK_HEC_TOKEN }}"
             aws_access_key: "{{ AWS_ACCESS_KEY }}"
             aws_secret_access_key: "{{ AWS_SECRET_ACCESS_KEY }}"
-            aws_session_token: "{{ AWS_SESSION_TOKEN }}"
+            #aws_session_token: "{{ AWS_SESSION_TOKEN }}"
 
         - name: Ensure python and jq are installed
           yum:
@@ -70,32 +74,22 @@
           shell: |
             export AWS_ACCESS_KEY_ID="{{ aws_access_key }}"
             export AWS_SECRET_ACCESS_KEY="{{ aws_secret_access_key }}"
-            export AWS_SESSION_TOKEN="{{ aws_session_token }}"
 
             cd prowler
-            ./prowler -M json -g cislevel1
-          register: result
+            ./prowler -b -n -M json -g cisLevel1 > ~/results.json
+          register: task_result
+          ignore_errors: yes
 
         - name: Output prower result
           debug:
             msg: 
-              - "{{ result }}"
-            
+              - "{{ task_result }}"
   
         - name: Pull the results locally to read json
           ansible.builtin.fetch:
             src: ~/results.json
             dest: ~/results.json
             flat: yes
-
-        - name: Set results fact and create splunk hec event
-          set_fact:
-            prowler_result: "{{ lookup('file','~/results.json') | from_json }}" 
-
-        - name: Display prowler results
-          debug:
-            msg:
-              - "{{ prowler_result }}"
 
         - name: Send to splunk from localhost
           delegate_to: localhost
@@ -108,8 +102,9 @@
             headers:
               Content-Type: application/json
               Authorization: "Splunk {{ splunk_hec_token }}"
-            body: "{{ { 'sourcetype': '_json', 'event': splunk_event.event + [ prowler_result ] } }}"
+            body: "{{ { 'sourcetype': '_json', 'event': { 'scan_id': scan_id, 'data': splunk_event.event.data + [ (item | from_json) ] } } }}"
             validate_certs: no
+          with_items: "{{ lookup('file', '~/results.json').splitlines() }}"
 
 
 
