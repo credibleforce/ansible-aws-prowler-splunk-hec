@@ -1,0 +1,116 @@
+---
+  - hosts: prowler
+    gather_facts: True
+    pre_tasks:
+    tasks:
+        - name: Set facts
+          set_fact:
+            splunk_event: "{{ { 'sourcetype': '_json', 'event':[] } }}"
+            # example: https://splunk:8088/services/collector/event
+            splunk_hec_server: "{{ SPLUNK_HEC_SERVER }}" 
+            splunk_hec_token: "{{ SPLUNK_HEC_TOKEN }}"
+            aws_access_key: "{{ AWS_ACCESS_KEY }}"
+            aws_secret_access_key: "{{ AWS_SECRET_ACCESS_KEY }}"
+            aws_session_token: "{{ AWS_SESSION_TOKEN }}"
+
+        - name: Ensure python and jq are installed
+          yum:
+            name:
+              - python3
+              - python3-pip
+              - jq
+            state: present
+          become: yes
+
+        - name: Ensure python modules awscli and detect-secret                
+          pip:
+            name:
+              - awscli
+              - detect-secrets
+            state: present
+          become: yes
+
+        - name: Get Prowler latest release
+          uri:
+            url: https://api.github.com/repos/toniblyx/prowler/releases/latest
+            method: 'GET'
+            body_format: json
+            status_code: [200, 202]
+            return_content: true
+            headers:
+              Content-Type: application/json
+          register: prowler_latest
+
+        - name: Prowler latest tarball url
+          debug:
+            msg:
+              - "{{ prowler_latest['json']['tarball_url'] }}"
+
+        - name: Download prowler.tgz
+          get_url:
+            url: "{{ prowler_latest['json']['tarball_url'] }}"
+            dest: ~/prowler.tgz
+
+        - name: Extract prowler.tgz
+          unarchive:
+            src: ~/prowler.tgz
+            dest: ~/
+            remote_src: yes
+
+        - name: Remove prowler folder prior to extraction
+          file:
+              path: ~/prowler
+              state: absent
+
+        - name: Rename the repo folder
+          shell: |
+            mv ~/toniblyx-prowler-* ~/prowler
+
+        - name: Execute prowler
+          shell: |
+            export AWS_ACCESS_KEY_ID="{{ aws_access_key }}"
+            export AWS_SECRET_ACCESS_KEY="{{ aws_secret_access_key }}"
+            export AWS_SESSION_TOKEN="{{ aws_session_token }}"
+
+            cd prowler
+            ./prowler -M json -g cislevel1
+          register: result
+
+        - name: Output prower result
+          debug:
+            msg: 
+              - "{{ result }}"
+            
+  
+        - name: Pull the results locally to read json
+          ansible.builtin.fetch:
+            src: ~/results.json
+            dest: ~/results.json
+            flat: yes
+
+        - name: Set results fact and create splunk hec event
+          set_fact:
+            prowler_result: "{{ lookup('file','~/results.json') | from_json }}" 
+
+        - name: Display prowler results
+          debug:
+            msg:
+              - "{{ prowler_result }}"
+
+        # - name: Send to splunk from localhost
+        #   delegate_to: localhost
+        #   uri:
+        #     url: "{{ splunk_hec_server }}"
+        #     method: 'POST'
+        #     body_format: json
+        #     status_code: [200, 202]
+        #     return_content: true
+        #     headers:
+        #       Content-Type: application/json
+        #       Authorization: "Splunk {{ splunk_hec_token }}"
+        #     body: "{{ { 'sourcetype': '_json', 'event': splunk_event.event + [ prowler_result ] } }}"
+        #     validate_certs: no
+
+
+
+      
