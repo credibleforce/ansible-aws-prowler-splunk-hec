@@ -1,111 +1,107 @@
 ---
-  - hosts: prowler
-    gather_facts: True
-    pre_tasks:
-    tasks:
-        - name: Create Scan ID
-          set_fact:
+- hosts: prowler
+  gather_facts: true
+  pre_tasks:
+  tasks:
+      - name: Create Scan ID
+        set_fact:
             scan_id: "{{ ansible_date_time.iso8601 }}"
 
-        - name: Set Execution Facts
-          set_fact:
+      - name: Set Execution Facts
+        set_fact:
             splunk_event: "{{ { 'sourcetype': '_json', 'event': { 'scan_id': scan_id, 'data': [] } } }}"
             # example: https://splunk:8088/services/collector/event
-            splunk_hec_server: "{{ SPLUNK_HEC_SERVER }}" 
+            splunk_hec_server: "{{ SPLUNK_HEC_SERVER }}"
             splunk_hec_token: "{{ SPLUNK_HEC_TOKEN }}"
             aws_access_key: "{{ AWS_ACCESS_KEY }}"
             aws_secret_access_key: "{{ AWS_SECRET_ACCESS_KEY }}"
-            #aws_session_token: "{{ AWS_SESSION_TOKEN }}"
+            # aws_session_token: "{{ AWS_SESSION_TOKEN }}"
 
-        - name: Ensure python and jq are installed
-          yum:
+      - name: Ensure python and jq are installed
+        yum:
             name:
-              - python3
-              - python3-pip
-              - jq
+                - python3
+                - python3-pip
+                - jq
             state: present
-          become: yes
+        become: true
 
-        - name: Ensure python modules awscli and detect-secret                
-          pip:
+      - name: Ensure python modules awscli and detect-secret
+        pip:
             name:
-              - awscli
-              - detect-secrets
+                - awscli
+                - detect-secrets
             state: present
-          become: yes
+        become: true
 
-        - name: Get Prowler latest release
-          uri:
+      - name: Get Prowler latest release
+        uri:
             url: https://api.github.com/repos/toniblyx/prowler/releases/latest
             method: 'GET'
             body_format: json
             status_code: [200, 202]
             return_content: true
             headers:
-              Content-Type: application/json
-          register: prowler_latest
+                Content-Type: application/json
+        register: prowler_latest
 
-        - name: Prowler latest tarball url
-          debug:
+      - name: Prowler latest tarball url
+        debug:
             msg:
-              - "{{ prowler_latest['json']['tarball_url'] }}"
+                - "{{ prowler_latest['json']['tarball_url'] }}"
 
-        - name: Download prowler.tgz
-          get_url:
+      - name: Download prowler.tgz
+        get_url:
             url: "{{ prowler_latest['json']['tarball_url'] }}"
             dest: ~/prowler.tgz
 
-        - name: Extract prowler.tgz
-          unarchive:
+      - name: Extract prowler.tgz
+        unarchive:
             src: ~/prowler.tgz
             dest: ~/
-            remote_src: yes
+            remote_src: true
 
-        - name: Remove prowler folder prior to extraction
-          file:
-              path: ~/prowler
-              state: absent
+      - name: Remove prowler folder prior to extraction
+        file:
+            path: ~/prowler
+            state: absent
 
-        - name: Rename the repo folder
-          shell: |
-            mv ~/toniblyx-prowler-* ~/prowler
+      - name: Rename the repo folder
+        shell: |
+          mv ~/toniblyx-prowler-* ~/prowler
 
-        - name: Execute prowler
-          shell: |
-            export AWS_ACCESS_KEY_ID="{{ aws_access_key }}"
-            export AWS_SECRET_ACCESS_KEY="{{ aws_secret_access_key }}"
+      - name: Execute prowler
+        shell: |
+          export AWS_ACCESS_KEY_ID="{{ aws_access_key }}"
+          export AWS_SECRET_ACCESS_KEY="{{ aws_secret_access_key }}"
 
-            cd prowler
-            ./prowler -b -n -M json -g cisLevel1 > ~/results.json
-          register: task_result
-          ignore_errors: yes
+          cd prowler
+          ./prowler -b -n -M json -g cislevel1 > ~/results.json
+        register: task_result
+        ignore_errors: true
 
-        - name: Output prower result
-          debug:
-            msg: 
-              - "{{ task_result }}"
-  
-        - name: Pull the results locally to read json
-          ansible.builtin.fetch:
+      - name: Output prower result
+        debug:
+            msg:
+                - "{{ task_result }}"
+
+      - name: Pull the results locally to read json
+        ansible.builtin.fetch:
             src: ~/results.json
             dest: ~/results.json
-            flat: yes
+            flat: true
 
-        - name: Send to splunk from localhost
-          delegate_to: localhost
-          uri:
+      - name: Send to splunk from localhost
+        delegate_to: localhost
+        uri:
             url: "{{ splunk_hec_server }}"
             method: 'POST'
             body_format: json
             status_code: [200, 202]
             return_content: true
             headers:
-              Content-Type: application/json
-              Authorization: "Splunk {{ splunk_hec_token }}"
+                Content-Type: application/json
+                Authorization: "Splunk {{ splunk_hec_token }}"
             body: "{{ { 'sourcetype': '_json', 'event': { 'scan_id': scan_id, 'data': splunk_event.event.data + [ (item | from_json) ] } } }}"
-            validate_certs: no
-          with_items: "{{ lookup('file', '~/results.json').splitlines() }}"
-
-
-
-      
+            validate_certs: false
+        with_items: "{{ lookup('file', '~/results.json').splitlines() }}"
