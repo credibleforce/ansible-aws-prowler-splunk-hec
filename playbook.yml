@@ -71,8 +71,8 @@
 
       - name: Execute prowler
         environment:
-            AWS_ACCESS_KEY_ID="{{ aws_access_key }}"
-            AWS_SECRET_ACCESS_KEY="{{ aws_secret_access_key }}"
+            AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
+            AWS_SECRET_ACCESS_KEY: "{{ aws_secret_access_key }}"
         shell: cd prowler && ./prowler -b -n -M json -g cislevel1 > ~/results.json
         register: task_result
         ignore_errors: true
