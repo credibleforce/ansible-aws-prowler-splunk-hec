@@ -1,5 +1,5 @@
 ---
-- hosts: prowler
+- hosts: localhost
   gather_facts: true
   pre_tasks:
   tasks:
