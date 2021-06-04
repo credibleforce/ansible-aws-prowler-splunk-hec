@@ -1,5 +1,5 @@
 ---
-- hosts: localhost
+- hosts: ansible-srv1
   gather_facts: true
   pre_tasks:
   tasks:
@@ -11,11 +11,7 @@
         set_fact:
             splunk_event: "{{ { 'sourcetype': '_json', 'event': { 'scan_id': scan_id, 'data': [] } } }}"
             # example: https://splunk:8088/services/collector/event
-            splunk_hec_server: "{{ SPLUNK_HEC_SERVER }}"
-            splunk_hec_token: "{{ SPLUNK_HEC_TOKEN }}"
-            aws_access_key: "{{ AWS_ACCESS_KEY }}"
-            aws_secret_access_key: "{{ AWS_SECRET_ACCESS_KEY }}"
-            # aws_session_token: "{{ AWS_SESSION_TOKEN }}"
+            splunk_hec_url: "https://{{ SPLUNK_HEC_SERVER }}:{{ SPLUNK_HEC_PORT }}/services/collector/event"
 
       - name: Ensure python and jq are installed
         yum:
@@ -34,25 +30,30 @@
             state: present
         become: true
 
-      - name: Get Prowler latest release
-        uri:
-            url: https://api.github.com/repos/toniblyx/prowler/releases/latest
-            method: 'GET'
-            body_format: json
-            status_code: [200, 202]
-            return_content: true
-            headers:
-                Content-Type: application/json
-        register: prowler_latest
+      # - name: Get Prowler latest release
+      #   uri:
+      #       url: https://api.github.com/repos/toniblyx/prowler/releases/latest
+      #       method: 'GET'
+      #       body_format: json
+      #       status_code: [200, 202]
+      #       return_content: true
+      #       headers:
+      #           Content-Type: application/json
+      #   register: prowler_latest
 
-      - name: Prowler latest tarball url
-        debug:
-            msg:
-                - "{{ prowler_latest['json']['tarball_url'] }}"
+      # - name: Prowler latest tarball url
+      #   debug:
+      #       msg:
+      #           - "{{ prowler_latest['json']['tarball_url'] }}"
+
+      # - name: Download prowler.tgz
+      #   get_url:
+      #       url: "{{ prowler_latest['json']['tarball_url'] }}"
+      #       dest: ~/prowler.tgz
 
       - name: Download prowler.tgz
         get_url:
-            url: "{{ prowler_latest['json']['tarball_url'] }}"
+            url: https://github.com/toniblyx/prowler/archive/refs/tags/2.4.1.tar.gz
             dest: ~/prowler.tgz
 
       - name: Extract prowler.tgz
@@ -67,12 +68,12 @@
             state: absent
 
       - name: Rename the repo folder
-        shell: mv ~/toniblyx-prowler-* ~/prowler
+        shell: mv ~/prowler-* ~/prowler
 
       - name: Execute prowler
         environment:
-            AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
-            AWS_SECRET_ACCESS_KEY: "{{ aws_secret_access_key }}"
+            AWS_ACCESS_KEY_ID: "{{ AWS_ACCESS_KEY }}"
+            AWS_SECRET_ACCESS_KEY: "{{ AWS_SECRET_ACCESS_KEY }}"
         shell: cd prowler && ./prowler -b -n -M json -g cislevel1 > ~/results.json
         register: task_result
         ignore_errors: true
@@ -91,14 +92,14 @@
       - name: Send to splunk from localhost
         delegate_to: localhost
         uri:
-            url: "{{ splunk_hec_server }}"
+            url: "{{ splunk_hec_url }}"
             method: 'POST'
             body_format: json
             status_code: [200, 202]
             return_content: true
             headers:
                 Content-Type: application/json
-                Authorization: "Splunk {{ splunk_hec_token }}"
+                Authorization: "Splunk {{ SPLUNK_HEC_TOKEN }}"
             body: "{{ { 'sourcetype': '_json', 'event': { 'scan_id': scan_id, 'data': splunk_event.event.data + [ (item | from_json) ] } } }}"
             validate_certs: false
         with_items: "{{ lookup('file', '~/results.json').splitlines() }}"
