@@ -11,7 +11,7 @@
         set_fact:
             splunk_event: "{{ { 'sourcetype': '_json', 'event': { 'scan_id': scan_id, 'data': [] } } }}"
             # example: https://splunk:8088/services/collector/event
-            splunk_hec_url: "https://{{ SPLUNK_HEC_SERVER }}:{{ SPLUNK_HEC_PORT }}/services/collector/event"
+            splunk_hec_url: "https://{{ lookup('env','SPLUNK_HEC_SERVER') }}:{{ lookup('env','SPLUNK_HEC_PORT') }}/services/collector/event"
 
       - name: Ensure python and jq are installed
         yum:
@@ -72,8 +72,8 @@
 
       - name: Execute prowler
         environment:
-            AWS_ACCESS_KEY_ID: "{{ AWS_ACCESS_KEY }}"
-            AWS_SECRET_ACCESS_KEY: "{{ AWS_SECRET_ACCESS_KEY }}"
+            AWS_ACCESS_KEY_ID: "{{ lookup('env','AWS_ACCESS_KEY_ID')}}"
+            AWS_SECRET_ACCESS_KEY: "{{ lookup('env','AWS_SECRET_ACCESS_KEY')}}"
         shell: cd prowler && ./prowler -b -n -M json -g cislevel1 > ~/results.json
         register: task_result
         ignore_errors: true
@@ -99,7 +99,7 @@
             return_content: true
             headers:
                 Content-Type: application/json
-                Authorization: "Splunk {{ SPLUNK_HEC_TOKEN }}"
+                Authorization: "Splunk {{ lookup('env','SPLUNK_HEC_TOKEN') }}"
             body: "{{ { 'sourcetype': '_json', 'event': { 'scan_id': scan_id, 'data': splunk_event.event.data + [ (item | from_json) ] } } }}"
             validate_certs: false
         with_items: "{{ lookup('file', '~/results.json').splitlines() }}"
