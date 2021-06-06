@@ -10,7 +10,7 @@
 
         - name: Set Execution Facts
           set_fact:
-              splunk_event: "{{ { 'sourcetype': '_json', 'event': { 'scan_id': scan_id, 'data': [] } } }}"
+              splunk_event: "{{ { 'sourcetype': 'prowler:json', 'event': { 'scan_id': scan_id, 'data': [] } } }}"
               # example: https://splunk:8088/services/collector/event
               splunk_hec_url: "https://{{ lookup('env','SPLUNK_HEC_SERVER') }}:{{ lookup('env','SPLUNK_HEC_PORT') }}/services/collector/event"
 
@@ -80,7 +80,9 @@
               headers:
                   Content-Type: application/json
                   Authorization: "Splunk {{ lookup('env','SPLUNK_HEC_TOKEN') }}"
-              body: "{{ { 'sourcetype': '_json', 'event': { 'scan_id': scan_id, 'data': splunk_event.event.data + [ (item | from_json) ] } } }}"
+              body: "{{ { 'sourcetype': 'prowler:json', 'event': { 'scan_id': scan_id, 'data': splunk_event.event.data + [ (item | from_json) ] } } }}"
               validate_certs: false
           with_items: "{{ lookup('file', '~/results.json').splitlines() }}"
-      tags: prowler
+      tags: 
+        - prowler
+        - prowler-aws
