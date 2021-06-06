@@ -1,0 +1,127 @@
+<form>
+  <label>Prowler</label>
+  <fieldset submitButton="false">
+    <input type="dropdown" token="scan_token" searchWhenChanged="true">
+      <label>ScanID</label>
+      <fieldForLabel>ScanID</fieldForLabel>
+      <fieldForValue>ScanID</fieldForValue>
+      <search>
+        <query>index=main sourcetype="_json" earliest=-30d
+|  eval ScanID=scan_id 
+|  stats count by ScanID
+| fields - count</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="dropdown" token="level_token">
+      <label>Level</label>
+      <choice value="*">All</choice>
+      <choice value="Level 1">Level 1</choice>
+      <choice value="Level 2">Level 2</choice>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="dropdown" token="severity_token" searchWhenChanged="true">
+      <label>Severity</label>
+      <choice value="*">Any</choice>
+      <choice value="Critical">Critical</choice>
+      <choice value="High">High</choice>
+      <choice value="Medium">Medium</choice>
+      <choice value="Low">Low</choice>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="dropdown" token="status_token" searchWhenChanged="true">
+      <label>Status</label>
+      <choice value="*">All</choice>
+      <choice value="Pass">Pass</choice>
+      <choice value="FAIL">Fail</choice>
+      <choice value="Info">Info</choice>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="time" token="field1">
+      <label></label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Pass</title>
+      <single>
+        <search>
+          <query>index=main sourcetype="_json"  data{}.Status=$status_token$ data{}.Severity=$severity_token$ scan_id="$scan_token$" data{}.Status="Pass" data{}.Level=$level_token$
+| stats count</query>
+          <earliest>$field1.earliest$</earliest>
+          <latest>$field1.latest$</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+        <option name="rangeValues">[0]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Fail</title>
+      <single>
+        <search>
+          <query>index=main sourcetype="_json"  data{}.Status=$status_token$ data{}.Severity=$severity_token$ scan_id="$scan_token$" data{}.Status="FAIL" data{}.Level=$level_token$
+| stats count</query>
+          <earliest>$field1.earliest$</earliest>
+          <latest>$field1.latest$</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0xdc4e41","0xdc4e41"]</option>
+        <option name="rangeValues">[0]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Benchmark Compliance</title>
+      <chart>
+        <search>
+          <query>index=main sourcetype="_json"  data{}.Status=$status_token$ data{}.Severity=$severity_token$ scan_id="$scan_token$" data{}.Level=$level_token$
+|  eval ScanID=scan_id, ControlID='data{}.Control ID', Control='data{}.Control', Message='data{}.Message', Level='data{}.Level', Service='data{}.Service', Status='data{}.Status', Severity='data{}.Severity'
+| table ScanID, ControlID, Control, Message, Level, Service, Status, Severity 
+| stats count by Status</query>
+          <earliest>$field1.earliest$</earliest>
+          <latest>$field1.latest$</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.fieldColors">{"Pass":0x65a637,"FAIL":0xd93f3c, "Info": 0xeeeeee}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Results</title>
+      <table>
+        <search>
+          <query>index=main sourcetype="_json"  data{}.Status=$status_token$ data{}.Severity=$severity_token$  scan_id="$scan_token$" data{}.Level=$level_token$
+|  eval ControlID='data{}.Control ID', Control='data{}.Control', Message='data{}.Message', Level='data{}.Level', Service='data{}.Service', Status='data{}.Status', Severity='data{}.Severity'
+| table scan_id, ControlID, Control, Message, Level, Service, Status, Severity</query>
+          <earliest>$field1.earliest$</earliest>
+          <latest>$field1.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>

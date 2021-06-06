@@ -30,27 +30,6 @@
             state: present
         become: true
 
-      # - name: Get Prowler latest release
-      #   uri:
-      #       url: https://api.github.com/repos/toniblyx/prowler/releases/latest
-      #       method: 'GET'
-      #       body_format: json
-      #       status_code: [200, 202]
-      #       return_content: true
-      #       headers:
-      #           Content-Type: application/json
-      #   register: prowler_latest
-
-      # - name: Prowler latest tarball url
-      #   debug:
-      #       msg:
-      #           - "{{ prowler_latest['json']['tarball_url'] }}"
-
-      # - name: Download prowler.tgz
-      #   get_url:
-      #       url: "{{ prowler_latest['json']['tarball_url'] }}"
-      #       dest: ~/prowler.tgz
-
       - name: Download prowler.tgz
         get_url:
             url: https://github.com/toniblyx/prowler/archive/refs/tags/2.4.1.tar.gz
